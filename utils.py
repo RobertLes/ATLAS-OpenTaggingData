@@ -6,14 +6,9 @@ from torch import nn
 from torch.utils.data import DataLoader, ConcatDataset
 from torchinfo import summary
 
-from weaver.nn.model.ParticleTransformer import ParticleTransformer
-
 import h5py
 import numpy as np
-import matplotlib.pyplot as plt
-import time
-import sys
-import argparse
+import os
 
 useNLL=False
 useBCE=False
@@ -127,7 +122,7 @@ class ATLASH5LowLevelDataset(torch.utils.data.Dataset):
     if self.useTransformer: self.data=torch.swapaxes(self.data, 0, 1)
 
     if self.return_pt:
-      self.data=torch.cat((self.data,torch.tensor([self.pt[index]])))
+      self.data=self.data,torch.tensor([self.pt[index]])
 
     if self.hasWeights:
       return self.data,torch.tensor(self.labels[index],dtype=torch.int64),torch.tensor(self.weights[index])
@@ -192,7 +187,7 @@ class ATLASH5HighLevelDataset(torch.utils.data.Dataset):
     self.data=torch.tensor([self.D2[index],self.C2[index],self.ECF1[index],self.ECF2[index],self.ECF3[index],self.L2[index],self.L3[index],self.Qw[index],self.Split12[index],self.Split23[index],self.Tau1_wta[index],self.Tau2_wta[index],self.Tau3_wta[index],self.Tau4_wta[index],self.ThrustMaj[index],self.m[index]])
 
     if self.return_pt:
-      self.data=torch.cat((self.data,torch.tensor([self.pt[index]])))
+      self.data=self.data,torch.tensor([self.pt[index]])
 
     if self.hasWeights:
       return self.data,torch.tensor(self.labels[index],dtype=torch.int64),torch.tensor(self.weights[index])
@@ -229,3 +224,36 @@ class DNNetwork(nn.Module):
     if useBCE: return logits
     if useNLL: return self.act3(logits)
     else: return logits
+
+def get_ATLAS_inputs(directory,network,batch_size=2**8,return_pt=False):
+
+  #Get list of input files
+  training_list=[]
+  testing_list=[]
+  for file in sorted(os.listdir(directory)):
+    if not ".h5" in file: continue
+    if "train" in file:
+      print("Using file %s for training"%(directory+"/"+file))
+      training_list.append(directory+"/"+file)
+    elif "test" in file:
+      print("Using file %s for testing"%(directory+"/"+file))
+      testing_list.append(directory+"/"+file)
+
+  #concat them
+  training_DSlist=[]
+  testing_DSlist=[]
+  if network!="HL":
+    for file in training_list: training_DSlist.append(ATLASH5LowLevelDataset(file,useTransformer=(network=="Transformer"),return_pt=return_pt))
+    for file in testing_list: testing_DSlist.append(ATLASH5LowLevelDataset(file,useTransformer=(network=="Transformer"),return_pt=return_pt))
+  else:
+    for file in training_list: training_DSlist.append(ATLASH5HighLevelDataset(file,transform=True,return_pt=return_pt))
+    for file in testing_list: testing_DSlist.append(ATLASH5HighLevelDataset(file,transform=True,return_pt=return_pt))
+  training_data = ConcatDataset(training_DSlist)
+  testing_data = ConcatDataset(testing_DSlist)
+
+  #load them into torch dataloaders 
+  train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
+  test_dataloader = DataLoader(testing_data, batch_size=batch_size, shuffle=True)
+
+  #return
+  return train_dataloader, test_dataloader

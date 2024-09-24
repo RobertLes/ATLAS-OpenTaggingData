@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import h5py
-import json
 import sys,os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -51,7 +50,7 @@ if __name__ == "__main__":
   # loop on collections
   for var in f.keys():
     print(var)
-    if f[var].ndim>1: continue
+    #if f[var].ndim>1: continue
     #values=f[var][:Njet]
     values_sig=[]
     values_bkg=[]
@@ -60,4 +59,6 @@ if __name__ == "__main__":
         values_sig.append(f[var][index])
       if label==0:
         values_bkg.append(f[var][index])
+    values_sig=np.asarray(values_sig).flatten()
+    values_bkg=np.asarray(values_bkg).flatten()
     make_hist([values_sig,values_bkg],"Plots/plot_"+var+".pdf")
