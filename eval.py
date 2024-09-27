@@ -12,7 +12,7 @@ import sys,os,time
 import argparse
 
 if __name__ == '__main__':
-	#Get input agrs
+  #Get input agrs
   parser = argparse.ArgumentParser()
   parser.add_argument("-n","--network", help="The type of network to run",choices=['HL', 'Constituent', 'Transformer'],required=True)
   parser.add_argument("-d","--directory", default="./", help="The directory with the input files")
@@ -35,10 +35,10 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(outname+".pth"))
 
   #Load information into numpy arrays
-  ys=[]
-  preds_raw=[]
-  weights=[]
-  pts=[]
+  ys=np.array([])
+  preds_raw=np.empty((0,2))
+  weights=np.array([])
+  pts=np.array([])
   with torch.no_grad():
     for (X, pt), y, w in test_dataloader:
       #Get prediction
@@ -52,21 +52,16 @@ if __name__ == '__main__':
         pred=torch.sigmoid(pred)
 
       #append info
-      preds_raw.append(pred.numpy())
-      ys.append(y.numpy())
-      pts.append(pt.numpy())
-      weights.append(w.numpy())
-
-  #Store things in useful per-jet format
-  preds_raw=np.array(preds_raw)
-  preds_raw=preds_raw.reshape(-1,preds_raw.shape[-1])
-  ys=np.array(ys).flatten()
-  pts=np.array(pts).flatten()
-  weights=np.array(weights).flatten()
+      preds_raw=np.concatenate([preds_raw,pred.numpy()])
+      ys=np.concatenate([ys,y.numpy().flatten()])
+      pts=np.concatenate([pts,pt.numpy().flatten()])
+      weights=np.concatenate([weights,pt.numpy().flatten()])
 
   #make confusion matrix
   confusion=metrics.confusion_matrix(ys, np.argmax(preds_raw,axis=1))
-  print(confusion)
+  disp=metrics.ConfusionMatrixDisplay.from_predictions(ys, np.argmax(preds_raw,axis=1),normalize="true",cmap="Blues")
+  plt.show()
+  plt.savefig("confusion.pdf")
 
   #Decision rule
   preds=np.log(preds_raw[:,0])/np.log(preds_raw[:,1])
